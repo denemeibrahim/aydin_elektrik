@@ -4,8 +4,26 @@ import json, os, datetime, requests
 CACHE_FILE = "/tmp/weather_cache.json"
 CACHE_TTL  = 3600  # 1 saat
 
-AYDIN_LAT = 37.8444
-AYDIN_LON = 27.8458
+def fetch_from_api():
+    """wttr.in - rate limit yok, ucretsiz"""
+    try:
+        url = "https://wttr.in/Aydin,Turkey?format=j1"
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        d = resp.json()
+        cur = d["current_condition"][0]
+        today = d["weather"][0]
+        return {
+            "tavg": round((float(today["maxtempC"]) + float(today["mintempC"])) / 2, 1),
+            "tmin": float(today["mintempC"]),
+            "tmax": float(today["maxtempC"]),
+            "prcp": float(today.get("hourly", [{}])[0].get("precipMM", 0)),
+            "wspd": float(cur.get("windspeedKmph", 10)) / 3.6,
+            "pres": float(cur.get("pressure", 1013)),
+            "source": "wttr.in",
+        }, None
+    except Exception as e:
+        return None, str(e)
 
 def get_weather():
     # Cache dosyasi var mi ve taze mi?
@@ -15,51 +33,41 @@ def get_weather():
                 cached = json.load(f)
             age = datetime.datetime.now().timestamp() - cached.get("_ts", 0)
             if age < CACHE_TTL:
-                cached["source"] = "Open-Meteo (cache)"
-                return cached, None
+                data = {k: v for k, v in cached.items() if k != "_ts"}
+                data["source"] = cached.get("source", "wttr.in") + " (cache)"
+                return data, None
         except Exception:
             pass
 
     # API'ye git
-    try:
-        url = (
-            f"https://api.open-meteo.com/v1/forecast"
-            f"?latitude={AYDIN_LAT}&longitude={AYDIN_LON}"
-            f"&daily=temperature_2m_max,temperature_2m_min,"
-            f"precipitation_sum,windspeed_10m_max,surface_pressure_mean"
-            f"&forecast_days=1&timezone=Europe%2FIstanbul"
-        )
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        d = resp.json()["daily"]
-        tmax = d["temperature_2m_max"][0]
-        tmin = d["temperature_2m_min"][0]
-        weather = {
-            "tavg": round((tmax + tmin) / 2, 1),
-            "tmin": tmin,
-            "tmax": tmax,
-            "prcp": d["precipitation_sum"][0] or 0.0,
-            "wspd": d["windspeed_10m_max"][0] or 0.0,
-            "pres": round((d.get("surface_pressure_mean") or [1013])[0], 1),
-            "source": "Open-Meteo",
-            "_ts": datetime.datetime.now().timestamp(),
-        }
-        with open(CACHE_FILE, "w") as f:
-            json.dump(weather, f)
+    weather, err = fetch_from_api()
+    if weather:
+        to_save = weather.copy()
+        to_save["_ts"] = datetime.datetime.now().timestamp()
+        try:
+            with open(CACHE_FILE, "w") as f:
+                json.dump(to_save, f)
+        except Exception:
+            pass
         return weather, None
-    except Exception as e:
-        # API basarisiz, eski cache varsa kullan
-        if os.path.exists(CACHE_FILE):
-            try:
-                with open(CACHE_FILE) as f:
-                    cached = json.load(f)
-                cached["source"] = "Open-Meteo (eski cache)"
-                return cached, f"API hatasi, eski cache kullanildi: {e}"
-            except Exception:
-                pass
-        # Hicbir sey yoksa varsayilan
-        return {
-            "tavg": 20.0, "tmin": 15.0, "tmax": 25.0,
-            "prcp": 0.0,  "wspd": 4.0,  "pres": 1013.0,
-            "source": "Varsayilan (API hatasi)",
-        }, str(e)
+
+    # API basarisiz, eski cache varsa kullan
+    if os.path.exists(CACHE_FILE):
+        try:
+            with open(CACHE_FILE) as f:
+                cached = json.load(f)
+            data = {k: v for k, v in cached.items() if k != "_ts"}
+            data["source"] = "wttr.in (eski cache)"
+            return data, f"API hatasi, eski cache: {err}"
+        except Exception:
+            pass
+
+    # Hicbir sey yoksa Aydin icin mevsimsel varsayilan
+    month = datetime.date.today().month
+    avg_temps = {1:8,2:9,3:12,4:17,5:22,6:27,7:31,8:31,9:26,10:20,11:14,12:10}
+    tavg = avg_temps.get(month, 18)
+    return {
+        "tavg": float(tavg), "tmin": float(tavg-4), "tmax": float(tavg+4),
+        "prcp": 0.0, "wspd": 4.0, "pres": 1013.0,
+        "source": "Mevsimsel varsayilan (API hatasi)",
+    }, str(err)
