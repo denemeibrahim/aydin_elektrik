@@ -159,43 +159,30 @@ def train_models(merged_df):
         "Ridge Regression":  Ridge(alpha=3.0),
     }
 
-    from sklearn.model_selection import LeaveOneOut
-
     results = {}; best_name, best_score = None, -np.inf
     for name, model in models.items():
         is_scaled = (name == "Ridge Regression")
         Xf = X_scaled if is_scaled else X
 
         # CV R² (k-fold)
-        cv_r2 = cross_val_score(model, Xf, y, cv=cv_folds, scoring="r2").mean()
-
-        # LOO ile gerçekçi MAE/RMSE
-        loo = LeaveOneOut()
-        loo_preds = []
-        for tr, te in loo.split(X):
-            Xtr = X_scaled[tr] if is_scaled else X.iloc[tr].values
-            Xte = X_scaled[te] if is_scaled else X.iloc[te].values
-            clone = model.__class__(**model.get_params())
-            clone.fit(Xtr, y.values[tr])
-            loo_preds.append(clone.predict(Xte.reshape(1,-1))[0])
-
-        loo_preds = np.array(loo_preds)
-        y_vals    = y.values
-        loo_mae   = mean_absolute_error(y_vals, loo_preds)
-        loo_rmse  = np.sqrt(mean_squared_error(y_vals, loo_preds))
-        loo_mape  = np.mean(np.abs((y_vals - loo_preds) / y_vals) * 100)
+        cv_scores = cross_val_score(model, Xf, y, cv=cv_folds, scoring="r2")
+        cv_r2 = cv_scores.mean()
 
         # Modeli tüm veriyle eğit
         model.fit(Xf, y)
-        train_r2 = r2_score(y, model.predict(Xf))
+        yp       = model.predict(Xf)
+        train_r2 = r2_score(y, yp)
+        mae      = mean_absolute_error(y, yp)
+        rmse     = np.sqrt(mean_squared_error(y, yp))
+        mape     = np.mean(np.abs((y.values - yp) / y.values) * 100)
 
         results[name] = {
             "model":     model,
             "cv_r2":     round(cv_r2, 4),
             "train_r2":  round(train_r2, 4),
-            "mae":       round(loo_mae, 2),
-            "rmse":      round(loo_rmse, 2),
-            "mape":      round(loo_mape, 2),
+            "mae":       round(mae, 2),
+            "rmse":      round(rmse, 2),
+            "mape":      round(mape, 2),
             "is_scaled": is_scaled,
         }
         if cv_r2 > best_score: best_score=cv_r2; best_name=name
