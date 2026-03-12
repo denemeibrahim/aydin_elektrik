@@ -1,0 +1,46 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyPackageRequirementsInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredPackages">
+        <list>
+          <option value="flask" />
+          <option value="flask-cors" />
+          <option value="requests" />
+          <option value="python-dotenv" />
+          <option value="python-dateutil" />
+          <option value="pytest" />
+          <option value="pytest-asyncio" />
+          <option value="black" />
+          <option value="flake8" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="torch" />
+          <option value="caffe" />
+          <option value="main.video_path" />
+          <option value="main.height" />
+          <option value="main.width" />
+          <option value="main.detect_motion" />
+          <option value="main.threshold" />
+          <option value="main.frame" />
+          <option value="main.np" />
+          <option value="main1.roiHsv" />
+          <option value="KeyPressModule" />
+          <option value="main.get_text_from_image" />
+          <option value="telloPlakatespit.KeyboardControl" />
+          <option value="finalPrototype.darkflow" />
+          <option value="deneme.darkflow" />
+          <option value="keras_ocr" />
+          <option value="cv2.cuda" />
+          <option value="cv2" />
+          <option value="yangınTespit.getKeyboardInput" />
+          <option value="scipy.stats.lilliefors" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>

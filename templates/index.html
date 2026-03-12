@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Aydın İli Elektrik Tüketim Tahmini</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --surface: #111827;
+    --surface2: #1a2236;
+    --accent: #00e5ff;
+    --accent2: #ff6b35;
+    --accent3: #7c3aed;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --border: rgba(0,229,255,0.15);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  /* GRID BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 3rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-area h1 {
+    font-size: 1.8rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fff;
+  }
+  .logo-area h1 span { color: var(--accent); }
+  .logo-area p {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .live-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0,229,255,0.08);
+    border: 1px solid var(--border);
+    border-radius: 100px;
+    padding: 8px 18px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+  }
+  .live-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); box-shadow: 0 0 0 0 rgba(0,229,255,0.4); }
+    50% { opacity: 0.8; transform: scale(1.1); box-shadow: 0 0 0 6px rgba(0,229,255,0); }
+  }
+
+  /* LOADING */
+  #loading-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.6s;
+  }
+  #loading-overlay.hidden { opacity: 0; pointer-events: none; }
+  .loader-ring {
+    width: 80px; height: 80px;
+    border: 3px solid rgba(0,229,255,0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 1.5rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loader-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+  }
+  .loader-text span {
+    color: var(--accent);
+    animation: blink 1.2s infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* HERO PREDICTION */
+  .hero-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .hero-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .hero-card:hover {
+    transform: translateY(-3px);
+    border-color: rgba(0,229,255,0.35);
+  }
+  .hero-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .hero-card:hover::after { opacity: 1; }
+  .hero-card.primary {
+    background: linear-gradient(135deg, #0d1f3c 0%, #0a1628 100%);
+    border-color: rgba(0,229,255,0.3);
+    grid-column: span 1;
+  }
+  .hero-card.primary::after { opacity: 1; }
+  .card-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-label::before {
+    content: '';
+    width: 3px; height: 3px;
+    background: var(--accent);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .card-value {
+    font-size: 2.8rem;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: #fff;
+  }
+  .card-value.accent { color: var(--accent); }
+  .card-value.orange { color: var(--accent2); }
+  .card-unit {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+  }
+  .card-sub {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-top: 0.75rem;
+    line-height: 1.5;
+  }
+  .best-badge {
+    display: inline-block;
+    background: rgba(0,229,255,0.12);
+    border: 1px solid rgba(0,229,255,0.3);
+    border-radius: 6px;
+    padding: 3px 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    margin-top: 0.5rem;
+  }
+
+  /* WEATHER STRIP */
+  .weather-strip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.5rem 2rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 3rem;
+    flex-wrap: wrap;
+  }
+  .weather-strip-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+  }
+  .weather-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .weather-val {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: #fff;
+  }
+  .weather-lbl {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+  .weather-source {
+    margin-left: auto;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent);
+    background: rgba(0,229,255,0.07);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 14px;
+  }
+
+  /* MODELS TABLE */
+  .section { margin-bottom: 2rem; }
+  .section-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .section-title span {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--accent);
+    background: rgba(0,229,255,0.1);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 3px 9px;
+    letter-spacing: 0.1em;
+  }
+  .models-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+  }
+  .model-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+    transition: border-color 0.2s;
+  }
+  .model-card.winner {
+    border-color: var(--accent);
+    background: linear-gradient(135deg, #0d1f3c 0%, #111827 100%);
+  }
+  .model-card.winner::before {
+    content: '★ EN İYİ';
+    position: absolute;
+    top: -1px; right: 16px;
+    background: var(--accent);
+    color: #000;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 0 0 6px 6px;
+    letter-spacing: 0.1em;
+  }
+  .model-name {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 1rem;
+  }
+  .model-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .stat-item {}
+  .stat-val {
+    font-family: 'Space Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .stat-val.good { color: var(--success); }
+  .stat-val.warn { color: var(--warning); }
+  .stat-lbl {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.6rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-top: 2px;
+  }
+
+  /* CHART AREA */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  .chart-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 1.75rem;
+  }
+  .chart-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 0.68rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+  }
+
+  /* MANUAL TEST */
+  .manual-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+  }
+  .inputs-row {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .input-group label {
+    display: block;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 6px;
+  }
+  .input-group input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 0.9rem;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .input-group input:focus {
+    border-color: var(--accent);
+  }
+  .btn-predict {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: 10px;
+    padding: 12px 28px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    text-transform: uppercase;
+  }
+  .btn-predict:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,229,255,0.3);
+  }
+  .manual-result {
+    margin-top: 1.5rem;
+    padding: 1.25rem;
+    background: rgba(0,229,255,0.05);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.82rem;
+    display: none;
+    color: var(--text);
+    line-height: 1.8;
+  }
+  .manual-result.show { display: block; }
+  .manual-result .hl { color: var(--accent); font-weight: 700; }
+
+  /* FOOTER */
+  footer {
+    text-align: center;
+    padding: 2rem 0;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    margin-top: 2rem;
+  }
+
+  /* WARNING */
+  .warn-box {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.3);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-family: 'Space Mono', monospace;
+    font-size: 0.72rem;
+    color: var(--warning);
+    margin-bottom: 1.5rem;
+    display: none;
+  }
+  .warn-box.show { display: block; }
+
+  /* RESPONSIVE */
+  @media (max-width: 1024px) {
+    .hero-grid { grid-template-columns: 1fr 1fr; }
+    .models-grid { grid-template-columns: 1fr; }
+    .chart-grid { grid-template-columns: 1fr; }
+    .inputs-row { grid-template-columns: repeat(3, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .hero-grid { grid-template-columns: 1fr; }
+    .inputs-row { grid-template-columns: 1fr 1fr; }
+  }
+
+  /* FADE IN */
+  .fade-in {
+    opacity: 0;
+    transform: translateY(16px);
+    animation: fadeIn 0.5s forwards;
+  }
+  @keyframes fadeIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in:nth-child(1) { animation-delay: 0.05s; }
+  .fade-in:nth-child(2) { animation-delay: 0.12s; }
+  .fade-in:nth-child(3) { animation-delay: 0.19s; }
+  .fade-in:nth-child(4) { animation-delay: 0.26s; }
+  .fade-in:nth-child(5) { animation-delay: 0.33s; }
+</style>
+</head>
+<body>
+
+<div id="loading-overlay">
+  <div class="loader-ring"></div>
+  <div class="loader-text">Model eğitiliyor & hava verisi alınıyor<span>...</span></div>
+</div>
+
+<div class="container" id="main" style="display:none">
+  <header>
+    <div class="logo-area">
+      <h1>Aydın <span>Elektrik</span> Tahmini</h1>
+      <p>ML Tabanlı Tüketim Tahmin Sistemi · 2023–2025</p>
+    </div>
+    <div class="live-badge">
+      <div class="live-dot"></div>
+      <span id="today-date">—</span>
+    </div>
+  </header>
+
+  <div id="warn-box" class="warn-box"></div>
+
+  <!-- WEATHER STRIP -->
+  <div class="weather-strip fade-in" id="weather-strip">
+    <div class="weather-item">
+      <div class="weather-strip-title">Hava Durumu Kaynağı</div>
+      <div class="weather-val" id="w-source">—</div>
+    </div>
+    <div class="weather-item">
+      <div class="weather-lbl">Ort. Sıcaklık</div>
+      <div class="weather-val" id="w-tavg">—</div>
+    </div>
+    <div class="weather-item">
+      <div class="weather-lbl">Min / Maks</div>
+      <div class="weather-val" id="w-range">—</div>
+    </div>
+    <div class="weather-item">
+      <div class="weather-lbl">Yağış</div>
+      <div class="weather-val" id="w-prcp">—</div>
+    </div>
+    <div class="weather-item">
+      <div class="weather-lbl">Rüzgar</div>
+      <div class="weather-val" id="w-wspd">—</div>
+    </div>
+    <div class="weather-item">
+      <div class="weather-lbl">Basınç</div>
+      <div class="weather-val" id="w-pres">—</div>
+    </div>
+  </div>
+
+  <!-- HERO CARDS -->
+  <div class="hero-grid">
+    <div class="hero-card primary fade-in">
+      <div class="card-label">Bugünkü Tahmini Tüketim (En İyi Model)</div>
+      <div class="card-value accent" id="best-daily">—</div>
+      <div class="card-unit">MWh / gün</div>
+      <div class="best-badge" id="best-model-name">—</div>
+    </div>
+    <div class="hero-card fade-in">
+      <div class="card-label">Aylık Tahmini Tüketim</div>
+      <div class="card-value" id="best-monthly">—</div>
+      <div class="card-unit">MWh / ay</div>
+      <div class="card-sub" id="month-days">— günlük ay</div>
+    </div>
+    <div class="hero-card fade-in">
+      <div class="card-label">Geçmiş Yıl Karşılaştırması (Aynı Ay / Günlük)</div>
+      <div class="card-value orange" id="hist-daily">—</div>
+      <div class="card-unit">MWh / gün (tüm yıllar ort.)</div>
+      <div class="card-sub" id="diff-pct" style="margin-bottom:0.4rem">—</div>
+      <div class="card-sub" id="ly-diff" style="margin-bottom:0.4rem">—</div>
+      <div class="card-sub" id="ly2-diff">—</div>
+    </div>
+  </div>
+
+  <!-- CHARTS -->
+  <div class="chart-grid">
+    <div class="chart-card fade-in">
+      <div class="chart-title">Aylık Tüketim Geçmişi & Trend (2023–2025)</div>
+      <canvas id="historyChart" height="90"></canvas>
+    </div>
+    <div class="chart-card fade-in">
+      <div class="chart-title">Model Karşılaştırması (Günlük MWh Tahmini)</div>
+      <canvas id="modelChart" height="220"></canvas>
+    </div>
+  </div>
+
+  <!-- MODELS -->
+  <div class="section fade-in">
+    <div class="section-title">Model Performansı <span>3 MODEL</span></div>
+    <div class="models-grid" id="models-grid"></div>
+  </div>
+
+  <!-- MANUAL TEST -->
+  <div class="manual-section fade-in">
+    <div class="section-title">Manuel Hava Verisi ile Test <span>ÖZEL TAHMİN</span></div>
+    <div class="inputs-row">
+      <div class="input-group">
+        <label>Ort. Sıcaklık (°C)</label>
+        <input type="number" id="in-tavg" value="22" step="0.1">
+      </div>
+      <div class="input-group">
+        <label>Min Sıcaklık</label>
+        <input type="number" id="in-tmin" value="16" step="0.1">
+      </div>
+      <div class="input-group">
+        <label>Maks Sıcaklık</label>
+        <input type="number" id="in-tmax" value="30" step="0.1">
+      </div>
+      <div class="input-group">
+        <label>Yağış (mm)</label>
+        <input type="number" id="in-prcp" value="0" step="0.1">
+      </div>
+      <div class="input-group">
+        <label>Rüzgar (m/s)</label>
+        <input type="number" id="in-wspd" value="4" step="0.1">
+      </div>
+      <div class="input-group">
+        <label>Basınç (hPa)</label>
+        <input type="number" id="in-pres" value="1013" step="0.1">
+      </div>
+    </div>
+    <button class="btn-predict" onclick="manualPredict()">TAHMİN ET</button>
+    <div class="manual-result" id="manual-result"></div>
+  </div>
+
+  <footer>
+    Aydın İli Elektrik Tüketim Tahmin Sistemi · Kaynak: EPDK + Meteostat + 7Timer API · 2025
+  </footer>
+</div>
+
+<script>
+let histChart, modelChartInst;
+
+function formatNum(n) {
+  return n ? n.toLocaleString('tr-TR', {maximumFractionDigits:1}) : '—';
+}
+
+function r2Color(v) {
+  if (v >= 0.85) return 'good';
+  if (v >= 0.65) return '';
+  return 'warn';
+}
+
+async function loadData() {
+  try {
+    const res = await fetch('/api/predict');
+    const d = await res.json();
+    if (!d.success) throw new Error(d.error);
+
+    document.getElementById('loading-overlay').classList.add('hidden');
+    document.getElementById('main').style.display = 'block';
+
+    const today = new Date(d.date);
+    document.getElementById('today-date').textContent =
+      today.toLocaleDateString('tr-TR', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+    if (d.weather_warning) {
+      const wb = document.getElementById('warn-box');
+      wb.textContent = '⚠ ' + d.weather_warning;
+      wb.classList.add('show');
+    }
+
+    // Weather
+    const w = d.weather;
+    document.getElementById('w-source').textContent = w.source;
+    document.getElementById('w-tavg').textContent = w.tavg.toFixed(1) + '°C';
+    document.getElementById('w-range').textContent = w.tmin.toFixed(1) + '° / ' + w.tmax.toFixed(1) + '°C';
+    document.getElementById('w-prcp').textContent = (w.prcp||0).toFixed(1) + ' mm';
+    document.getElementById('w-wspd').textContent = (w.wspd||0).toFixed(1) + ' m/s';
+    document.getElementById('w-pres').textContent = (w.pres||0).toFixed(0) + ' hPa';
+
+    // Hero
+    const pred = d.predictions;
+    document.getElementById('best-daily').textContent = formatNum(pred.best_daily);
+    document.getElementById('best-monthly').textContent = formatNum(pred.monthly_predictions[pred.best_model]);
+    document.getElementById('best-model-name').textContent = pred.best_model;
+    document.getElementById('month-days').textContent = pred.days_in_month + ' günlük ay';
+
+    if (pred.historical_daily_avg) {
+      document.getElementById('hist-daily').textContent = formatNum(pred.historical_daily_avg);
+
+      function diffBadge(pct, label) {
+        if (pct === null || pct === undefined) return '';
+        const sign  = pct > 0 ? '+' : '';
+        const color = pct > 5 ? '#ff6b35' : pct < -5 ? '#10b981' : '#00e5ff';
+        return `<span style="color:${color};font-weight:700">${sign}${pct}%</span> ${label}`;
+      }
+
+      document.getElementById('diff-pct').innerHTML =
+        diffBadge(pred.hist_diff_pct, `tüm yıllar ortalamasına göre (${pred.year}/${String(pred.month).padStart(2,'0')})`);
+      document.getElementById('ly-diff').innerHTML =
+        diffBadge(pred.ly_diff_pct, `${pred.ly_year} aynı aya göre`);
+      document.getElementById('ly2-diff').innerHTML =
+        diffBadge(pred.ly2_diff_pct, `${pred.ly2_year} aynı aya göre`);
+    }
+
+    // Model cards
+    const grid = document.getElementById('models-grid');
+    d.model_stats.forEach(m => {
+      const card = document.createElement('div');
+      card.className = 'model-card' + (m.is_best ? ' winner' : '');
+      const mapeColor = m.mape < 6 ? 'good' : m.mape < 10 ? '' : 'warn';
+      card.innerHTML = `
+        <div class="model-name">${m.name}</div>
+        <div class="model-stats">
+          <div class="stat-item">
+            <div class="stat-val ${r2Color(m.cv_r2)}">${m.cv_r2.toFixed(3)}</div>
+            <div class="stat-lbl">CV R² Skoru</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val ${mapeColor}">${m.mape ? m.mape.toFixed(1)+'%' : '-'}</div>
+            <div class="stat-lbl">MAPE (LOO)</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val">${formatNum(m.mae)}</div>
+            <div class="stat-lbl">MAE — LOO (MWh)</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-val">${formatNum(m.rmse)}</div>
+            <div class="stat-lbl">RMSE — LOO (MWh)</div>
+          </div>
+        </div>
+        <div class="card-sub" style="margin-top:1rem">
+          Günlük tahmini: <strong style="color:#e2e8f0">${formatNum(pred.daily_predictions[m.name])} MWh</strong>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+
+    // Charts
+    await loadHistoryChart();
+    buildModelChart(pred, d.model_stats);
+
+  } catch(e) {
+    document.getElementById('loading-overlay').innerHTML =
+      `<div style="color:#ff6b6b;font-family:monospace;text-align:center;padding:2rem">
+        <div style="font-size:2rem;margin-bottom:1rem">⚠</div>
+        <div>Hata: ${e.message}</div>
+      </div>`;
+  }
+}
+
+async function loadHistoryChart() {
+  const res = await fetch('/api/history');
+  const d = await res.json();
+  if (!d.success) return;
+  const rows = d.data;
+  const labels = rows.map(r => {
+    const months = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
+    return months[r.month-1] + ' ' + r.year;
+  });
+  const values = rows.map(r => r.toplam);
+  const temps = rows.map(r => r.tavg);
+
+  const ctx = document.getElementById('historyChart').getContext('2d');
+  histChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Tüketim (MWh)',
+          data: values,
+          backgroundColor: values.map(v => v > 300000 ? 'rgba(255,107,53,0.7)' : 'rgba(0,229,255,0.5)'),
+          borderColor: values.map(v => v > 300000 ? '#ff6b35' : '#00e5ff'),
+          borderWidth: 1,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Ort. Sıcaklık (°C)',
+          data: temps,
+          type: 'line',
+          borderColor: '#7c3aed',
+          backgroundColor: 'rgba(124,58,237,0.1)',
+          pointRadius: 3,
+          borderWidth: 2,
+          yAxisID: 'y2',
+          tension: 0.4,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#94a3b8', font: { family: 'Space Mono', size: 10 } } }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 9, family: 'Space Mono' } }, grid: { color: 'rgba(255,255,255,0.03)' } },
+        y: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.05)' }, title: { display: true, text: 'MWh', color: '#475569' } },
+        y2: { position: 'right', ticks: { color: '#64748b', font: { size: 9 } }, grid: { display: false }, title: { display: true, text: '°C', color: '#475569' } },
+      }
+    }
+  });
+}
+
+function buildModelChart(pred, stats) {
+  const ctx = document.getElementById('modelChart').getContext('2d');
+  const names = stats.map(s => s.name);
+  const dailyVals = names.map(n => pred.daily_predictions[n]);
+  const colors = ['rgba(0,229,255,0.7)', 'rgba(255,107,53,0.7)', 'rgba(124,58,237,0.7)'];
+
+  modelChartInst = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: names,
+      datasets: [{
+        label: 'Günlük Tahmin (MWh)',
+        data: dailyVals,
+        backgroundColor: colors,
+        borderColor: colors.map(c => c.replace('0.7','1')),
+        borderWidth: 2,
+        borderRadius: 8,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false }
+      },
+      scales: {
+        x: { ticks: { color: '#64748b', font: { size: 9 } }, grid: { color: 'rgba(255,255,255,0.05)' } },
+        y: { ticks: { color: '#94a3b8', font: { family: 'Space Mono', size: 9 } }, grid: { display: false } }
+      }
+    }
+  });
+}
+
+async function manualPredict() {
+  const body = {
+    tavg: parseFloat(document.getElementById('in-tavg').value),
+    tmin: parseFloat(document.getElementById('in-tmin').value),
+    tmax: parseFloat(document.getElementById('in-tmax').value),
+    prcp: parseFloat(document.getElementById('in-prcp').value),
+    wspd: parseFloat(document.getElementById('in-wspd').value),
+    pres: parseFloat(document.getElementById('in-pres').value),
+  };
+  const res = await fetch('/api/manual_predict', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body)
+  });
+  const d = await res.json();
+  if (!d.success) { alert('Hata: ' + d.error); return; }
+
+  const pred = d.predictions;
+  const resultDiv = document.getElementById('manual-result');
+  let html = `<strong style="color:#fff">Girilen Hava: ${body.tavg}°C ort | ${body.tmin}–${body.tmax}°C | ${body.prcp}mm yağış</strong><br><br>`;
+  for (const [model, daily] of Object.entries(pred.daily_predictions)) {
+    const monthly = pred.monthly_predictions[model];
+    const isBest = model === pred.best_model;
+    html += `<span class="${isBest ? 'hl' : ''}">${isBest ? '★ ' : ''}${model}</span>: <span class="hl">${formatNum(daily)} MWh/gün</span> (aylık: ${formatNum(monthly)} MWh)<br>`;
+  }
+  resultDiv.innerHTML = html;
+  resultDiv.classList.add('show');
+}
+
+loadData();
+</script>
+</body>
+</html>
