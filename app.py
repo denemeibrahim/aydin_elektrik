@@ -1,58 +1,11 @@
 from flask import Flask, render_template, jsonify, request
-import requests
 import datetime
-import os
 import traceback
 
 from model import get_trained, predict_today
+from weather_cache import get_weather
 
 app = Flask(__name__)
-
-AYDIN_LAT = 37.8444
-AYDIN_LON = 27.8458
-
-
-def fetch_weather_openmeteo():
-    """Open-Meteo — ücretsiz, kayıt gerektirmez, doğru Celsius verir"""
-    try:
-        url = (
-            f"https://api.open-meteo.com/v1/forecast"
-            f"?latitude={AYDIN_LAT}&longitude={AYDIN_LON}"
-            f"&daily=temperature_2m_max,temperature_2m_min,"
-            f"precipitation_sum,windspeed_10m_max,surface_pressure_mean"
-            f"&forecast_days=1&timezone=Europe%2FIstanbul"
-        )
-        resp = requests.get(url, timeout=10)
-        resp.raise_for_status()
-        d = resp.json()["daily"]
-        tmax = d["temperature_2m_max"][0]
-        tmin = d["temperature_2m_min"][0]
-        tavg = round((tmax + tmin) / 2, 1)
-        pres_list = d.get("surface_pressure_mean", [None])
-        pres = pres_list[0] if pres_list[0] is not None else 1013.0
-        return {
-            "tavg": tavg,
-            "tmin": tmin,
-            "tmax": tmax,
-            "prcp": d["precipitation_sum"][0] or 0.0,
-            "wspd": d["windspeed_10m_max"][0] or 0.0,
-            "pres": round(pres, 1),
-            "source": "Open-Meteo",
-        }, None
-    except Exception as e:
-        return None, str(e)
-
-
-def get_today_weather():
-    weather, err = fetch_weather_openmeteo()
-    if weather:
-        return weather, None
-    # Fallback: makul varsayılan değerler
-    return {
-        "tavg": 20.0, "tmin": 15.0, "tmax": 25.0,
-        "prcp": 0.0,  "wspd": 4.0,  "pres": 1013.0,
-        "source": "Varsayılan (API hatası)",
-    }, f"Open-Meteo erişilemedi: {err}"
 
 
 @app.route("/")
@@ -64,7 +17,7 @@ def index():
 def api_predict():
     try:
         trained = get_trained()
-        weather, weather_warning = get_today_weather()
+        weather, weather_warning = get_weather()
 
         result = predict_today(
             weather_today=weather,
@@ -139,7 +92,7 @@ def manual_predict():
 
 
 if __name__ == "__main__":
-    print("🔄 Model eğitiliyor...")
+    print("Model egitiliyor...")
     get_trained()
-    print("✅ Model hazır!")
+    print("Model hazir!")
     app.run(debug=True, host="0.0.0.0", port=5000)
